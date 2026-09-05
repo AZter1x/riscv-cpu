@@ -1,0 +1,6 @@
+sim/*.vcd
+sim/tb_alu
+sim/tb_top
+prog/*.o
+prog/*.elf
+prog/*.bin
