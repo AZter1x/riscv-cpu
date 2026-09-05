@@ -1,0 +1,45 @@
+[*]
+[*] GTKWave Analyzer v3.3.100 (w)1999-2019 BSI
+[*] Sat Jul 04 21:19:13 2026
+[*]
+[dumpfile] "C:\Pablo\Projects\RISC V _ CPU\sim\sim\cpu.vcd"
+[savefile] "C:\Pablo\Projects\RISC V _ CPU\sim\cpu.gtkw"
+[timestart] 23600
+[size] 1920 1057
+[pos] -61 -61
+*-14.000000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] tb_top.
+[treeopen] tb_top.dut.
+[treeopen] tb_top.dut.decode_stage.
+[sst_width] 244
+[signals_width] 190
+[sst_expanded] 1
+[sst_vpaned_height] 314
+@28
+tb_top.clk
+@420
+tb_top.cycle
+@28
+tb_top.rst
+@22
+tb_top.dut.if_pc[31:0]
+tb_top.dut.if_instr[31:0]
+tb_top.dut.id_instr[31:0]
+tb_top.dut.ex_alu_result[31:0]
+@28
+tb_top.dut.ex_branch_taken
+tb_top.dut.stall
+tb_top.dut.flush_if_id
+@22
+tb_top.dut.mem_alu_result[31:0]
+tb_top.dut.mem_read_data[31:0]
+tb_top.dut.wb_data[31:0]
+@25
+tb_top.dut.wb_rd_out[4:0]
+@28
+tb_top.dut.wb_reg_write_out
+tb_top.dut.forward_a[1:0]
+@24
+tb_top.dut.forward_b[1:0]
+[pattern_trace] 1
+[pattern_trace] 0
