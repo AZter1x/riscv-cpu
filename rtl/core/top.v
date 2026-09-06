@@ -14,7 +14,8 @@ module top (
     wire [4:0]  id_rs1, id_rs2, id_rd;
     wire [2:0]  id_funct3;
     wire        id_funct7_5;
-    wire [6:0]  id_opcode;                                   // ← ADDED
+    wire        id_funct7_1;           // M-extension flag
+    wire [6:0]  id_opcode;
     wire        id_reg_write, id_mem_read, id_mem_write;
     wire        id_branch, id_alu_src, id_mem_to_reg;
     wire [1:0]  id_alu_op;
@@ -24,7 +25,8 @@ module top (
     wire [4:0]  ex_rs1, ex_rs2, ex_rd;
     wire [2:0]  ex_funct3;
     wire        ex_funct7_5;
-    wire [6:0]  ex_opcode;                                   // ← ADDED
+    wire        ex_funct7_1;           // M-extension flag
+    wire [6:0]  ex_opcode;
     wire        ex_reg_write, ex_mem_read, ex_mem_write;
     wire        ex_branch, ex_alu_src, ex_mem_to_reg;
     wire [1:0]  ex_alu_op;
@@ -32,14 +34,18 @@ module top (
     // ── EX stage wires ───────────────────────────────────
     wire [31:0] ex_alu_result, ex_branch_target, ex_rdata2_fwd;
     wire        ex_branch_taken;
-    wire        ex_jalr_taken;                               // ← ADDED
-    wire [31:0] ex_jalr_target;                              // ← ADDED
+    wire        ex_jalr_taken;
+    wire [31:0] ex_jalr_target;
+    wire        ex_mul_div_stall;      // M-extension stall
+    wire [31:0] ex_mul_div_result;     // M-extension result
 
     // ── EX/MEM register outputs ──────────────────────────
     wire [31:0] mem_branch_target, mem_alu_result, mem_rdata2;
+    wire [31:0] mem_mul_div_result;    // M-extension result
     wire [4:0]  mem_rd;
     wire        mem_branch_taken;
     wire        mem_reg_write, mem_mem_read, mem_mem_write, mem_mem_to_reg;
+    wire        mem_is_mul_div;        // M-extension flag
 
     // ── MEM stage wires ──────────────────────────────────
     wire [31:0] mem_alu_result_out, mem_read_data;
@@ -48,8 +54,10 @@ module top (
 
     // ── MEM/WB register outputs ──────────────────────────
     wire [31:0] wb_alu_result, wb_read_data;
+    wire [31:0] wb_mul_div_result;     // M-extension result
     wire [4:0]  wb_rd;
     wire        wb_reg_write, wb_mem_to_reg;
+    wire        wb_is_mul_div;         // M-extension flag
 
     // ── WB stage wires ───────────────────────────────────
     wire [31:0] wb_data;
@@ -59,7 +67,7 @@ module top (
     // ── Hazard and forwarding wires ──────────────────────
     wire        stall, flush_id_ex;
     wire [1:0]  forward_a, forward_b;
-    wire        flush_if_id = mem_branch_taken | ex_jalr_taken; // ← UPDATED
+    wire        flush_if_id = mem_branch_taken | ex_jalr_taken;
 
     // ── Stage Instantiations ─────────────────────────────
 
@@ -69,8 +77,8 @@ module top (
         .stall        (stall),
         .branch_taken (mem_branch_taken),
         .branch_target(mem_branch_target),
-        .jalr_taken   (ex_jalr_taken),                       // ← ADDED
-        .jalr_target  (ex_jalr_target),                      // ← ADDED
+        .jalr_taken   (ex_jalr_taken),
+        .jalr_target  (ex_jalr_target),
         .pc           (if_pc),
         .instr        (if_instr),
         .pc_plus4     (if_pc_plus4)
@@ -92,7 +100,8 @@ module top (
         .rdata1       (id_rdata1), .rdata2(id_rdata2), .imm(id_imm),
         .rs1          (id_rs1),    .rs2   (id_rs2),    .rd (id_rd),
         .funct3       (id_funct3), .funct7_5(id_funct7_5),
-        .opcode       (id_opcode),                           // ← ADDED
+        .funct7_1     (id_funct7_1),
+        .opcode       (id_opcode),
         .reg_write_out(id_reg_write), .mem_read (id_mem_read),
         .mem_write    (id_mem_write), .branch   (id_branch),
         .alu_src      (id_alu_src),   .mem_to_reg(id_mem_to_reg),
@@ -105,7 +114,8 @@ module top (
         .id_rdata2   (id_rdata2),   .id_imm   (id_imm),
         .id_rs1      (id_rs1),      .id_rs2   (id_rs2),   .id_rd(id_rd),
         .id_funct3   (id_funct3),   .id_funct7_5(id_funct7_5),
-        .id_opcode   (id_opcode),                           // ← ADDED
+        .id_funct7_1 (id_funct7_1),
+        .id_opcode   (id_opcode),
         .id_reg_write(id_reg_write), .id_mem_read (id_mem_read),
         .id_mem_write(id_mem_write), .id_branch   (id_branch),
         .id_alu_src  (id_alu_src),   .id_mem_to_reg(id_mem_to_reg),
@@ -114,7 +124,8 @@ module top (
         .ex_rdata2   (ex_rdata2),   .ex_imm   (ex_imm),
         .ex_rs1      (ex_rs1),      .ex_rs2   (ex_rs2),   .ex_rd(ex_rd),
         .ex_funct3   (ex_funct3),   .ex_funct7_5(ex_funct7_5),
-        .ex_opcode   (ex_opcode),                           // ← ADDED
+        .ex_funct7_1 (ex_funct7_1),
+        .ex_opcode   (ex_opcode),
         .ex_reg_write(ex_reg_write), .ex_mem_read (ex_mem_read),
         .ex_mem_write(ex_mem_write), .ex_branch   (ex_branch),
         .ex_alu_src  (ex_alu_src),   .ex_mem_to_reg(ex_mem_to_reg),
@@ -122,12 +133,15 @@ module top (
     );
 
     execute execute_stage (
+        .clk              (clk),
+        .rst              (rst),
         .ex_pc            (ex_pc),
         .ex_rdata1        (ex_rdata1),  .ex_rdata2    (ex_rdata2),
         .ex_imm           (ex_imm),     .ex_rs1       (ex_rs1),
         .ex_rs2           (ex_rs2),     .ex_rd        (ex_rd),
         .ex_funct3        (ex_funct3),  .ex_funct7_5  (ex_funct7_5),
-        .ex_opcode        (ex_opcode),                      // ← ADDED
+        .ex_funct7_1      (ex_funct7_1),
+        .ex_opcode        (ex_opcode),
         .ex_alu_src       (ex_alu_src), .ex_branch    (ex_branch),
         .ex_alu_op        (ex_alu_op),
         .ex_mem_alu_result(mem_alu_result),
@@ -137,22 +151,36 @@ module top (
         .branch_target    (ex_branch_target),
         .branch_taken     (ex_branch_taken),
         .rdata2_out       (ex_rdata2_fwd),
-        .jalr_taken       (ex_jalr_taken),                  // ← ADDED
-        .jalr_target      (ex_jalr_target)                  // ← ADDED
+        .jalr_taken       (ex_jalr_taken),
+        .jalr_target      (ex_jalr_target),
+        .mul_div_stall    (ex_mul_div_stall),
+        .mul_div_result   (ex_mul_div_result)
     );
 
     ex_mem_reg ex_mem (
         .clk(clk), .rst(rst),
-        .ex_branch_target(ex_branch_target), .ex_alu_result(ex_alu_result),
-        .ex_rdata2       (ex_rdata2_fwd),    .ex_rd        (ex_rd),
-        .ex_branch_taken (ex_branch_taken),
-        .ex_reg_write    (ex_reg_write),  .ex_mem_read  (ex_mem_read),
-        .ex_mem_write    (ex_mem_write),  .ex_mem_to_reg(ex_mem_to_reg),
-        .mem_branch_target(mem_branch_target), .mem_alu_result(mem_alu_result),
-        .mem_rdata2      (mem_rdata2),    .mem_rd       (mem_rd),
-        .mem_branch_taken(mem_branch_taken),
-        .mem_reg_write   (mem_reg_write), .mem_mem_read (mem_mem_read),
-        .mem_mem_write   (mem_mem_write), .mem_mem_to_reg(mem_mem_to_reg)
+        .ex_branch_target  (ex_branch_target),
+        .ex_alu_result     (ex_alu_result),
+        .ex_rdata2         (ex_rdata2_fwd),
+        .ex_mul_div_result (ex_mul_div_result),
+        .ex_rd             (ex_rd),
+        .ex_branch_taken   (ex_branch_taken),
+        .ex_reg_write      (ex_reg_write),
+        .ex_mem_read       (ex_mem_read),
+        .ex_mem_write      (ex_mem_write),
+        .ex_mem_to_reg     (ex_mem_to_reg),
+        .ex_is_mul_div     (ex_mul_div_stall),
+        .mem_branch_target (mem_branch_target),
+        .mem_alu_result    (mem_alu_result),
+        .mem_rdata2        (mem_rdata2),
+        .mem_mul_div_result(mem_mul_div_result),
+        .mem_rd            (mem_rd),
+        .mem_branch_taken  (mem_branch_taken),
+        .mem_reg_write     (mem_reg_write),
+        .mem_mem_read      (mem_mem_read),
+        .mem_mem_write     (mem_mem_write),
+        .mem_mem_to_reg    (mem_mem_to_reg),
+        .mem_is_mul_div    (mem_is_mul_div)
     );
 
     memory memory_stage (
@@ -173,31 +201,38 @@ module top (
 
     mem_wb_reg mem_wb (
         .clk(clk), .rst(rst),
-        .mem_alu_result(mem_alu_result_out),
-        .mem_rdata     (mem_read_data),
-        .mem_rd        (mem_rd_out),
-        .mem_reg_write (mem_reg_write_out),
-        .mem_mem_to_reg(mem_mem_to_reg_out),
-        .wb_alu_result (wb_alu_result),
-        .wb_rdata      (wb_read_data),
-        .wb_rd         (wb_rd),
-        .wb_reg_write  (wb_reg_write),
-        .wb_mem_to_reg (wb_mem_to_reg)
+        .mem_alu_result    (mem_alu_result_out),
+        .mem_rdata         (mem_read_data),
+        .mem_mul_div_result(mem_mul_div_result),
+        .mem_rd            (mem_rd_out),
+        .mem_reg_write     (mem_reg_write_out),
+        .mem_mem_to_reg    (mem_mem_to_reg_out),
+        .mem_is_mul_div    (mem_is_mul_div),
+        .wb_alu_result     (wb_alu_result),
+        .wb_rdata          (wb_read_data),
+        .wb_mul_div_result (wb_mul_div_result),
+        .wb_rd             (wb_rd),
+        .wb_reg_write      (wb_reg_write),
+        .wb_mem_to_reg     (wb_mem_to_reg),
+        .wb_is_mul_div     (wb_is_mul_div)
     );
 
     writeback writeback_stage (
-        .wb_alu_result (wb_alu_result),
-        .wb_read_data  (wb_read_data),
-        .wb_rd         (wb_rd),
-        .wb_reg_write  (wb_reg_write),
-        .wb_mem_to_reg (wb_mem_to_reg),
-        .wb_data       (wb_data),
-        .rd_out        (wb_rd_out),
-        .reg_write_out (wb_reg_write_out)
+        .wb_alu_result    (wb_alu_result),
+        .wb_read_data     (wb_read_data),
+        .wb_mul_div_result(wb_mul_div_result),
+        .wb_rd            (wb_rd),
+        .wb_reg_write     (wb_reg_write),
+        .wb_mem_to_reg    (wb_mem_to_reg),
+        .wb_is_mul_div    (wb_is_mul_div),
+        .wb_data          (wb_data),
+        .rd_out           (wb_rd_out),
+        .reg_write_out    (wb_reg_write_out)
     );
 
     hazard_unit hazard (
         .id_ex_mem_read(ex_mem_read),
+        .mul_div_stall (ex_mul_div_stall),
         .id_ex_rd      (ex_rd),
         .if_id_rs1     (id_rs1), .if_id_rs2(id_rs2),
         .stall         (stall),  .flush_id_ex(flush_id_ex)

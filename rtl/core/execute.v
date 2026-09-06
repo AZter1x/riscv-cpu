@@ -1,11 +1,13 @@
 // rtl/core/execute.v
 
 module execute (
+    input        clk, rst,        // needed for mul_div_unit
     // Inputs from ID/EX register
     input  [31:0] ex_pc, ex_rdata1, ex_rdata2, ex_imm,
     input  [4:0]  ex_rs1, ex_rs2, ex_rd,
     input  [2:0]  ex_funct3,
     input         ex_funct7_5,
+    input         ex_funct7_1,    // M-extension flag
     input         ex_alu_src, ex_branch,
     input  [1:0]  ex_alu_op,
     input  [6:0]  ex_opcode,
@@ -19,10 +21,13 @@ module execute (
     output        branch_taken,
     output [31:0] rdata2_out,
     output        jalr_taken,
-    output [31:0] jalr_target
+    output [31:0] jalr_target,
+    output        mul_div_stall,  // stall pipeline while mul/div runs
+    output [31:0] mul_div_result  // result from mul_div_unit
 );
     wire [3:0] alu_ctrl;
     wire       alu_zero;
+    wire       is_mul_div;
     reg  [31:0] alu_in_a, forwarded_b;
 
     // AUIPC and JALR opcode detection
@@ -30,7 +35,6 @@ module execute (
     wire jalr  = (ex_opcode == 7'b1100111);
 
     // 3-way forwarding mux -- input A
-    // AUIPC uses PC as input A instead of rs1
     always @(*) begin
         case (forward_a)
             2'b00: alu_in_a = auipc ? ex_pc : ex_rdata1;
@@ -78,11 +82,37 @@ module execute (
     assign jalr_taken  = jalr;
     assign jalr_target = (alu_in_a + ex_imm) & 32'hFFFFFFFE;
 
+    // mul/div stall -- hold pipeline high while operation is running
+    // done goes high for one cycle when result is ready
+    wire mul_div_done;
+    reg  mul_div_running;
+    reg  start_pulse;
+
+    // Generate a one-cycle start pulse when a new mul/div enters EX
+    // is_mul_div goes high whenever a mul/div is in EX stage
+    // start_pulse fires only on the first cycle (not while stalling)
+    always @(posedge clk or posedge rst) begin
+        if (rst)
+            mul_div_running <= 0;
+        else if (start_pulse)
+            mul_div_running <= 1;
+        else if (mul_div_done)
+            mul_div_running <= 0;
+    end
+
+    always @(*) begin
+        start_pulse = is_mul_div && !mul_div_running && !mul_div_done;
+    end
+
+    assign mul_div_stall = is_mul_div && !mul_div_done;
+
     alu_control alu_ctrl_unit (
         .alu_op(ex_alu_op),
         .funct3(ex_funct3),
         .funct7_5(ex_funct7_5),
-        .alu_ctrl(alu_ctrl)
+        .funct7_1(ex_funct7_1),
+        .alu_ctrl(alu_ctrl),
+        .is_mul_div(is_mul_div)
     );
 
     alu alu_unit (
@@ -92,4 +122,16 @@ module execute (
         .result(alu_result),
         .zero(alu_zero)
     );
+
+    mul_div_unit mdu (
+        .clk(clk),
+        .rst(rst),
+        .start(start_pulse),
+        .funct3(ex_funct3),
+        .a(alu_in_a),
+        .b(forwarded_b),
+        .result(mul_div_result),
+        .done(mul_div_done)
+    );
+
 endmodule

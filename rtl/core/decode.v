@@ -25,7 +25,7 @@ module control (
         {reg_write, mem_read, mem_write, branch, alu_src, mem_to_reg} = 6'b0;
         alu_op = 2'b00;
         case (opcode)
-            7'b0110011: begin // R-type
+            7'b0110011: begin // R-type (includes M-extension)
                 reg_write = 1; alu_op = 2'b10;
             end
             7'b0010011: begin // I-type ALU
@@ -104,6 +104,7 @@ module decode (
     output [4:0]  rs1, rs2, rd,
     output [2:0]  funct3,
     output        funct7_5,
+    output        funct7_1,   // M-extension flag
     output [6:0]  opcode,
     // Control signals
     output        reg_write_out, mem_read, mem_write,
@@ -115,6 +116,7 @@ module decode (
     assign rd       = instr[11:7];
     assign funct3   = instr[14:12];
     assign funct7_5 = instr[30];
+    assign funct7_1 = instr[25];  // bit 25 of instruction = funct7[1]
     assign opcode   = instr[6:0];
 
     regfile rf (
