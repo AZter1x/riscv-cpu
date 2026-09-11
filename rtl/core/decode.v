@@ -8,6 +8,11 @@ module regfile (
     output [31:0] rdata1, rdata2
 );
     reg [31:0] regs [0:31];
+    integer i;
+    initial begin
+        for (i = 0; i < 32; i = i + 1)
+            regs[i] = 32'd0;
+    end
     assign rdata1 = (rs1 == 0) ? 32'd0 : regs[rs1];
     assign rdata2 = (rs2 == 0) ? 32'd0 : regs[rs2];
     always @(posedge clk)
@@ -116,7 +121,7 @@ module decode (
     assign rd       = instr[11:7];
     assign funct3   = instr[14:12];
     assign funct7_5 = instr[30];
-    assign funct7_1 = instr[25];  // bit 25 of instruction = funct7[1]
+    assign funct7_1 = (instr[6:0] == 7'b0110011) && instr[25];  // M-extension flag (R-type only)
     assign opcode   = instr[6:0];
 
     regfile rf (

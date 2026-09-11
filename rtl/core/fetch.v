@@ -1,11 +1,14 @@
-// rtl/core/fetch.v
+// RISC V _ CPU/rtl/core/fetch.v
 
 module fetch (
     input        clk, rst, stall,
     input        branch_taken,
     input  [31:0] branch_target,
-    input        jalr_taken,          // ← ADDED
-    input  [31:0] jalr_target,        // ← ADDED
+    input        jalr_taken,
+    input  [31:0] jalr_target,
+    // Port B forwarded from memory stage for rodata / constants
+    input  [31:0] data_addr,
+    output [31:0] data_rdata,
     output reg [31:0] pc,
     output [31:0] instr, pc_plus4
 );
@@ -21,5 +24,10 @@ module fetch (
         if (rst)         pc <= 32'h0000_0000;
         else if (!stall) pc <= next_pc;
 
-    imem imem0 (.addr(pc), .instr(instr));
+    imem imem0 (
+        .addr      (pc),
+        .instr     (instr),
+        .data_addr (data_addr),
+        .data_rdata(data_rdata)
+    );
 endmodule

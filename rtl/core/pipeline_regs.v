@@ -78,6 +78,7 @@ module ex_mem_reg (
     input  [31:0] ex_branch_target, ex_alu_result, ex_rdata2,
     input  [31:0] ex_mul_div_result, // M-extension result
     input  [4:0]  ex_rd,
+    input  [2:0]  ex_funct3,         // forwarded to MEM for LB/LH/LW/SB/SH/SW
     input         ex_branch_taken,
     // Control inputs
     input         ex_reg_write, ex_mem_read, ex_mem_write, ex_mem_to_reg,
@@ -86,6 +87,7 @@ module ex_mem_reg (
     output reg [31:0] mem_branch_target, mem_alu_result, mem_rdata2,
     output reg [31:0] mem_mul_div_result, // M-extension result
     output reg [4:0]  mem_rd,
+    output reg [2:0]  mem_funct3,         // forwarded to MEM
     output reg        mem_branch_taken,
     // Control outputs
     output reg        mem_reg_write, mem_mem_read, mem_mem_write, mem_mem_to_reg,
@@ -95,6 +97,7 @@ module ex_mem_reg (
         if (rst) begin
             mem_branch_target  <= 32'd0; mem_alu_result <= 32'd0;
             mem_rdata2         <= 32'd0; mem_rd         <= 5'd0;
+            mem_funct3         <= 3'd0;
             mem_branch_taken   <= 1'd0;
             mem_mul_div_result <= 32'd0;
             mem_reg_write  <= 0; mem_mem_read   <= 0;
@@ -105,6 +108,7 @@ module ex_mem_reg (
             mem_alu_result     <= ex_alu_result;
             mem_rdata2         <= ex_rdata2;
             mem_rd             <= ex_rd;
+            mem_funct3         <= ex_funct3;
             mem_branch_taken   <= ex_branch_taken;
             mem_mul_div_result <= ex_mul_div_result;
             mem_reg_write      <= ex_reg_write;

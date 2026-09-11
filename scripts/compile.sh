@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/compile.sh
+# c:\Pablo\Projects\RISC V _ CPU\scripts\compile.sh
 mkdir -p sim
 iverilog -o sim/tb_top \
   rtl/alu/alu.v \
@@ -9,6 +9,7 @@ iverilog -o sim/tb_top \
   rtl/core/fetch.v \
   rtl/core/decode.v \
   rtl/core/execute.v \
+  rtl/core/mul_div_unit.v \
   rtl/core/memory.v \
   rtl/core/writeback.v \
   rtl/core/pipeline_regs.v \
